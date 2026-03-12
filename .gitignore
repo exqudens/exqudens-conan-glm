@@ -5,6 +5,7 @@
 .vscode/
 build/
 tmp/
+src/main/
 
 # Files
 *.iml

@@ -148,6 +148,14 @@ else()
     endif()
 endif()
 
+set(CONAN_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/conan-install")
+
+file(MAKE_DIRECTORY "${CONAN_INSTALL_PREFIX}/bin")
+file(MAKE_DIRECTORY "${CONAN_INSTALL_PREFIX}/lib")
+
+file(MAKE_DIRECTORY "${CONAN_INSTALL_PREFIX}/test/bin")
+file(MAKE_DIRECTORY "${CONAN_INSTALL_PREFIX}/test/lib")
+
 if("${USE_CONAN}")
     set_conan_architecture(CONAN_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
     set_conan_compiler(CONAN_COMPILER "${CMAKE_CXX_COMPILER_ID}")
@@ -171,14 +179,120 @@ if("${USE_CONAN}")
         "build_type=${CMAKE_BUILD_TYPE}"
     )
     set_conan_options(CONAN_OPTIONS
-        "${PROJECT_NAME}/*:header_only=${CONAN_HEADER_ONLY}"
         "&:shared=${CONAN_BUILD_SHARED_LIBS}"
         "*:shared=${CONAN_BUILD_SHARED_LIBS}"
     )
+    if(NOT "${SKIP_TEST}" AND EXISTS "${PROJECT_SOURCE_DIR}/test-conanfile.py")
+        if(NOT EXISTS "${CONAN_INSTALL_PREFIX}/test/conan-packages.cmake")
+            #[[execute_process(
+                COMMAND "${CONAN_COMMAND}" "user" "$ENV{CONAN_LOGIN_USERNAME}" "-r" "artifactory" "-p"
+                WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                ENCODING "UTF-8"
+                COMMAND_ERROR_IS_FATAL "ANY"
+            )]]
+            execute_process(
+                COMMAND "${CONAN_COMMAND}" "install"
+                        "--output-folder" "${CONAN_INSTALL_PREFIX}/test"
+                        ${CONAN_SETTINGS}
+                        ${CONAN_OPTIONS}
+                        "${PROJECT_SOURCE_DIR}/test-conanfile.py"
+                COMMAND_ECHO "STDERR"
+                ENCODING "UTF-8"
+                COMMAND_ERROR_IS_FATAL "ANY"
+            )
+        endif()
+        if(NOT EXISTS "${CONAN_INSTALL_PREFIX}/test/conan-packages.cmake")
+            message(FATAL_ERROR "Not exists: '${CONAN_INSTALL_PREFIX}/test/conan-packages.cmake'")
+        endif()
+        include("${CONAN_INSTALL_PREFIX}/test/conan-packages.cmake")
+        list(APPEND CMAKE_MODULE_PATH "${CONAN_INSTALL_PREFIX}/test")
+        list(APPEND CMAKE_PREFIX_PATH "${CONAN_INSTALL_PREFIX}/test")
+        foreach(
+            conanPackageName
+            cmakePackageName
+            cmakePackageVersion
+            cmakePackagePath
+            IN ZIP_LISTS
+            "${PROJECT_NAME}_CONAN_PACKAGE_NAMES"
+            "${PROJECT_NAME}_CMAKE_PACKAGE_NAMES"
+            "${PROJECT_NAME}_CMAKE_PACKAGE_VERSIONS"
+            "${PROJECT_NAME}_CMAKE_PACKAGE_PATHS"
+        )
+            if(
+                "" STREQUAL "${conanPackageName}"
+                OR "" STREQUAL "${cmakePackageName}"
+                OR "" STREQUAL "${cmakePackageVersion}"
+                OR "" STREQUAL "${cmakePackagePath}"
+            )
+                string(JOIN " " errorMessage
+                    "Empty value 'conanPackageName': '${conanPackageName}'"
+                    "or 'cmakePackageName': '${cmakePackageName}'"
+                    "or 'cmakePackageVersion': '${cmakePackageVersion}'"
+                    "or 'cmakePackagePath': '${cmakePackagePath}'!"
+                )
+                message(FATAL_ERROR "${errorMessage}")
+            elseif(NOT IS_DIRECTORY "${cmakePackagePath}")
+                message(FATAL_ERROR "Not is directory 'cmakePackagePath': '${cmakePackagePath}'!")
+            endif()
+
+            if("${${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_VERSION}" STREQUAL "")
+                set("${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_VERSION" "${cmakePackageVersion}")
+            endif()
+
+            if("${${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_PATH}" STREQUAL "")
+                set("${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_PATH" "${cmakePackagePath}")
+            endif()
+
+            list(APPEND "${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES" "${cmakePackageName}")
+            list(APPEND CMAKE_PREFIX_PATH "${cmakePackagePath}")
+        endforeach()
+    endif()
 endif()
 
-string(TOLOWER "${PROJECT_NAME}" PROJECT_NAME_LOWER)
-set(PROJECT_VERSION_NOTWEAK "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+if("${${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES}" STREQUAL "")
+    #[[list(APPEND "${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES"
+        "Vulkan"
+    )]]
+    if(NOT "${SKIP_TEST}")
+        list(APPEND "${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES"
+            "GTest"
+            "exqudens-cpp-log-api"
+            "exqudens-cpp-log"
+        )
+    endif()
+endif()
+message(STATUS "${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES:")
+foreach(cmakePackageName IN LISTS "${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES")
+    message(STATUS "${cmakePackageName}")
+endforeach()
+unset(NOT_FOUND_PACKAGE_NAMES)
+foreach(cmakePackageName IN LISTS "${PROJECT_NAME}_CMAKE_FIND_PACKAGE_NAMES")
+    if("GTest" STREQUAL "${cmakePackageName}")
+        file(REMOVE "${CONAN_INSTALL_PREFIX}/test/${cmakePackageName}Config.cmake")
+        file(REMOVE "${CONAN_INSTALL_PREFIX}/test/${cmakePackageName}-config.cmake")
+        list(APPEND NOT_FOUND_PACKAGE_NAMES "${cmakePackageName}")
+        find_package("${cmakePackageName}" "${${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_VERSION}" EXACT QUIET)
+    elseif("exqudens-cpp-log-api" STREQUAL "${cmakePackageName}")
+        file(REMOVE "${CONAN_INSTALL_PREFIX}/test/${cmakePackageName}Config.cmake")
+        file(REMOVE "${CONAN_INSTALL_PREFIX}/test/${cmakePackageName}-config.cmake")
+        list(APPEND NOT_FOUND_PACKAGE_NAMES "${cmakePackageName}")
+        find_package("${cmakePackageName}" "${${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_VERSION}" EXACT QUIET)
+    elseif("exqudens-cpp-log" STREQUAL "${cmakePackageName}")
+        file(REMOVE "${CONAN_INSTALL_PREFIX}/test/${cmakePackageName}Config.cmake")
+        file(REMOVE "${CONAN_INSTALL_PREFIX}/test/${cmakePackageName}-config.cmake")
+        list(APPEND NOT_FOUND_PACKAGE_NAMES "${cmakePackageName}")
+        find_package("${cmakePackageName}" "${${PROJECT_NAME}_CMAKE_PACKAGE_${cmakePackageName}_VERSION}" EXACT QUIET)
+    else()
+        message(WARNING "Ignore cmakePackageName: '${cmakePackageName}'")
+    endif()
+endforeach()
+set_not_found_package_names(NOT_FOUND_PACKAGE_NAMES ${NOT_FOUND_PACKAGE_NAMES})
+if(NOT "" STREQUAL "${NOT_FOUND_PACKAGE_NAMES}")
+    foreach(package IN LISTS NOT_FOUND_PACKAGE_NAMES)
+        message(SEND_ERROR "${package}_FOUND: '${${package}_FOUND}' ${package}_NOT_FOUND_MESSAGE: '${${package}_NOT_FOUND_MESSAGE}'")
+    endforeach()
+    message(FATAL_ERROR "Some package not found!")
+endif()
 
 cmake_path(CONVERT "$ENV{CMAKE_USER_HOME}" TO_CMAKE_PATH_LIST CMAKE_USER_HOME NORMALIZE)
 if("" STREQUAL "${CMAKE_USER_HOME}")
@@ -203,72 +317,267 @@ endif()
 if(NOT EXISTS "${CMAKE_DOWNLOADS}" OR NOT IS_DIRECTORY "${CMAKE_DOWNLOADS}")
     message(FATAL_ERROR "CMAKE_DOWNLOADS: '${CMAKE_DOWNLOADS}' is not directory.")
 endif()
-if(NOT EXISTS "${CMAKE_DOWNLOADS}/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}.zip")
+if(NOT EXISTS "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
     message(STATUS "download ...")
     file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/tmp")
     file(DOWNLOAD
-        "https://github.com/g-truc/${PROJECT_NAME_LOWER}/archive/refs/tags/${PROJECT_VERSION_NOTWEAK}.zip"
-        "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}.zip"
-        EXPECTED_MD5 "62a0d49dc9db445f077e952e34f13ad2"
+        "https://github.com/g-truc/${PROJECT_NAME}/archive/refs/tags/${PROJECT_VERSION}.zip"
+        "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME}-${PROJECT_VERSION}.zip"
+        EXPECTED_MD5 "a421a37d1896ab74765c3f94431ca0f6"
         STATUS downloadStatus
     )
     if(NOT "${downloadStatus}" STREQUAL "0;\"No error\"")
         message(FATAL_ERROR "downloadStatus: '${downloadStatus}'")
     endif()
-    file(COPY "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}.zip" DESTINATION "${CMAKE_DOWNLOADS}")
+    file(COPY "${PROJECT_BINARY_DIR}/tmp/${PROJECT_NAME}-${PROJECT_VERSION}.zip" DESTINATION "${CMAKE_DOWNLOADS}")
     message(STATUS "... done")
 endif()
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}.zip")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME}-${PROJECT_VERSION}.zip")
     message(STATUS "copy from downloads ...")
-    file(COPY "${CMAKE_DOWNLOADS}/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}.zip" DESTINATION "${PROJECT_SOURCE_DIR}/build")
+    file(COPY "${CMAKE_DOWNLOADS}/${PROJECT_NAME}-${PROJECT_VERSION}.zip" DESTINATION "${PROJECT_SOURCE_DIR}/build")
     message(STATUS "... done")
 endif()
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME}-${PROJECT_VERSION}")
     message(STATUS "extract ...")
-    file(ARCHIVE_EXTRACT INPUT "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}.zip" DESTINATION "${PROJECT_SOURCE_DIR}/build")
+    file(ARCHIVE_EXTRACT INPUT "${PROJECT_SOURCE_DIR}/build/${PROJECT_NAME}-${PROJECT_VERSION}.zip" DESTINATION "${PROJECT_SOURCE_DIR}/build")
     message(STATUS "... done")
 endif()
 set(BUILD_DIR "${PROJECT_SOURCE_DIR}/build")
 cmake_path(RELATIVE_PATH "BUILD_DIR" BASE_DIRECTORY "${PROJECT_SOURCE_DIR}" OUTPUT_VARIABLE "BUILD_DIR_REL")
 
-set(SKIP_TEST "1" CACHE BOOL "...")
+set(SKIP_TEST "0" CACHE BOOL "...")
 message(STATUS "SKIP_TEST: '${SKIP_TEST}'")
 
-set(TARGET_CMAKE_INSTALL_DEPENDS_ON "${PROJECT_NAME_LOWER}")
+set(TARGET_CMAKE_INSTALL_DEPENDS_ON "${PROJECT_NAME}")
 if(NOT "${SKIP_TEST}")
     set(TARGET_CMAKE_INSTALL_DEPENDS_ON "cmake-test")
 endif()
 
 message(STATUS "TARGET_CMAKE_INSTALL_DEPENDS_ON: '${TARGET_CMAKE_INSTALL_DEPENDS_ON}'")
 
-set(GLM_BUILD_LIBRARY "0" CACHE BOOL "..." FORCE)
-set(GLM_BUILD_INSTALL "1" CACHE BOOL "..." FORCE)
-set(GLM_ENABLE_CXX_20 "1" CACHE BOOL "..." FORCE)
-set(GLM_BUILD_TESTS "${SKIP_TEST}" CACHE BOOL "..." FORCE)
+file(REMOVE_RECURSE "${PROJECT_SOURCE_DIR}/src/main")
+file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/src/main/cpp")
+file(
+    COPY "${BUILD_DIR_REL}/${PROJECT_NAME}-${PROJECT_VERSION}/glm"
+    DESTINATION "${PROJECT_SOURCE_DIR}/src/main/cpp"
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+    PATTERN "*.inl"
+)
+file(GLOB_RECURSE "${PROJECT_NAME}_LIB_FILES" RELATIVE "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src/main/cpp/**/*.h"
+    "${PROJECT_SOURCE_DIR}/src/main/cpp/**/*.hpp"
+    "${PROJECT_SOURCE_DIR}/src/main/cpp/**/*.inl"
+)
+list(LENGTH "${PROJECT_NAME}_LIB_FILES" "${PROJECT_NAME}_LIB_FILES_LENGTH")
+message(STATUS "${PROJECT_NAME}_LIB_FILES_LENGTH: ${${PROJECT_NAME}_LIB_FILES_LENGTH}")
 
-add_subdirectory("${BUILD_DIR_REL}/${PROJECT_NAME_LOWER}-${PROJECT_VERSION_NOTWEAK}")
-
+add_library("${PROJECT_NAME}" INTERFACE
+    ${${PROJECT_NAME}_LIB_FILES}
+)
+target_include_directories("${PROJECT_NAME}" INTERFACE
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/main/cpp>"
+    "$<INSTALL_INTERFACE:include>"
+)
+#set_property(TARGET "${PROJECT_NAME}" PROPERTY "VERSION" "${PROJECT_VERSION}")
+#set_property(TARGET "${PROJECT_NAME}" PROPERTY "SOVERSION" "${PROJECT_VERSION}")
+set_property(TARGET "${PROJECT_NAME}" PROPERTY "INTERFACE_${PROJECT_NAME}_MAJOR_VERSION" "${PROJECT_VERSION}")
+set_property(TARGET "${PROJECT_NAME}" APPEND PROPERTY "COMPATIBLE_INTERFACE_STRING" "${PROJECT_NAME}_MAJOR_VERSION")
 install(
-    EXPORT "${PROJECT_NAME_LOWER}Targets"
+    EXPORT "${PROJECT_NAME}-targets"
     DESTINATION "cmake"
-    NAMESPACE "${PROJECT_NAME_LOWER}::"
-    FILE "${PROJECT_NAME_LOWER}Targets.cmake"
+    NAMESPACE "${PROJECT_NAME}::"
+    FILE "${PROJECT_NAME}-targets.cmake"
+)
+include("CMakePackageConfigHelpers")
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/package-config.cmake.in"
+    "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-config.cmake"
+    INSTALL_DESTINATION "cmake"
+)
+write_basic_package_version_file(
+    "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake"
+    VERSION "${PROJECT_VERSION}"
+    COMPATIBILITY "ExactVersion"
 )
 install(
-    TARGETS "${PROJECT_NAME_LOWER}"
-    EXPORT "${PROJECT_NAME_LOWER}Targets"
+    FILES "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-config.cmake"
+    "${PROJECT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake"
+    DESTINATION "cmake"
+)
+install(
+    DIRECTORY "src/main/cpp/"
+    DESTINATION "include"
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+    PATTERN "*.inl"
+)
+install(
+    TARGETS "${PROJECT_NAME}"
+    EXPORT "${PROJECT_NAME}-targets"
     INCLUDES DESTINATION "include"
     RUNTIME DESTINATION "bin"
     LIBRARY DESTINATION "lib"
     ARCHIVE DESTINATION "lib"
 )
 
+if(NOT "${SKIP_TEST}")
+    add_library("test-lib"
+        "src/test/cpp/TestUtils.hpp"
+        "src/test/cpp/TestUtils.cpp"
+        "src/test/cpp/TestApplication.hpp"
+        "src/test/cpp/TestApplication.cpp"
+        "src/test/cpp/unit/VersionUnitTests.hpp"
+        "src/test/cpp/unit/GtcMatrixTransformUnitTests.hpp"
+    )
+    generate_export_header("test-lib"
+        BASE_NAME "TEST_LIB"
+        EXPORT_FILE_NAME "generated/src/test/cpp/test_lib_export.hpp"
+    )
+    target_compile_definitions("test-lib" PUBLIC
+        #"NOMINMAX" # Windows
+
+        # Debug-Messages
+        "GLM_FORCE_MESSAGES"
+
+        # For glm::to_string etc
+        "GLM_ENABLE_EXPERIMENTAL"
+
+        "GLM_FORCE_DEPTH_ZERO_TO_ONE" # vk is from 0 to 1
+        #"GLM_FORCE_LEFT_HANDED" # vk::FrontFace::eClockwise
+        "GLM_FORCE_RIGHT_HANDED" # vk::FrontFace::eCounterClockwise
+
+        #"GLM_FORCE_CXX17"
+        #"GLM_FORCE_CXX_UNKNOWN"
+        #"GLM_FORCE_UNRESTRICTED_GENTYPE"
+        #"GLM_FORCE_ALIGNED_GENTYPES"
+
+        # Force 32-bit SIMD
+        #"GLM_FORCE_SSE2"
+        #"GLM_FORCE_AVX"
+        #"GLM_FORCE_PURE"
+
+        "GLM_FORCE_RADIANS"
+        "GLM_FORCE_DEFAULT_ALIGNED_GENTYPES"
+    )
+    target_include_directories("test-lib" PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/src/test/cpp>"
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/test/cpp>"
+        "$<INSTALL_INTERFACE:include>"
+    )
+    if(NOT "${BUILD_SHARED_LIBS}")
+        target_compile_definitions("test-lib" PUBLIC
+            "TEST_LIB_STATIC_DEFINE"
+        )
+    endif()
+    target_link_libraries("test-lib" PUBLIC
+        "${PROJECT_NAME}"
+        "GTest::gmock"
+        "GTest::gtest"
+        "GTest::gmock_main"
+        "GTest::gtest_main"
+        "exqudens-cpp-log::exqudens-cpp-log"
+    )
+    set_target_properties("test-lib" PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY                "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE        "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL     "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG          "${PROJECT_BINARY_DIR}/test/bin"
+
+        ARCHIVE_OUTPUT_DIRECTORY                "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_RELEASE        "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL     "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_DEBUG          "${PROJECT_BINARY_DIR}/test/lib"
+
+        LIBRARY_OUTPUT_DIRECTORY                "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_RELEASE        "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_DEBUG          "${PROJECT_BINARY_DIR}/test/lib"
+    )
+
+    add_executable("test-app" "src/test/cpp/main.cpp")
+    target_link_libraries("test-app"
+        "test-lib"
+    )
+    set_target_properties("test-app" PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY                "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE        "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL     "${PROJECT_BINARY_DIR}/test/bin"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG          "${PROJECT_BINARY_DIR}/test/bin"
+
+        ARCHIVE_OUTPUT_DIRECTORY                "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_RELEASE        "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL     "${PROJECT_BINARY_DIR}/test/lib"
+        ARCHIVE_OUTPUT_DIRECTORY_DEBUG          "${PROJECT_BINARY_DIR}/test/lib"
+
+        LIBRARY_OUTPUT_DIRECTORY                "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_RELEASE        "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     "${PROJECT_BINARY_DIR}/test/lib"
+        LIBRARY_OUTPUT_DIRECTORY_DEBUG          "${PROJECT_BINARY_DIR}/test/lib"
+    )
+    if("${BUILD_SHARED_LIBS}")
+        if("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+            add_custom_command(TARGET "test-app"
+                PRE_BUILD
+                COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "$<TARGET_PROPERTY:${PROJECT_NAME},RUNTIME_OUTPUT_DIRECTORY>" "$<TARGET_PROPERTY:test-app,RUNTIME_OUTPUT_DIRECTORY>"
+                COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "${CONAN_INSTALL_PREFIX}/bin" "$<TARGET_PROPERTY:test-app,RUNTIME_OUTPUT_DIRECTORY>"
+                COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "${CONAN_INSTALL_PREFIX}/test/bin" "$<TARGET_PROPERTY:test-app,RUNTIME_OUTPUT_DIRECTORY>"
+                WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                USES_TERMINAL
+                VERBATIM
+            )
+        else()
+            add_custom_command(TARGET "test-app"
+                PRE_BUILD
+                COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "$<TARGET_PROPERTY:${PROJECT_NAME},LIBRARY_OUTPUT_DIRECTORY>" "$<TARGET_PROPERTY:test-app,RUNTIME_OUTPUT_DIRECTORY>"
+                COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "${CONAN_INSTALL_PREFIX}/lib" "$<TARGET_PROPERTY:test-app,RUNTIME_OUTPUT_DIRECTORY>"
+                COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "${CONAN_INSTALL_PREFIX}/test/lib" "$<TARGET_PROPERTY:test-app,RUNTIME_OUTPUT_DIRECTORY>"
+                WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                USES_TERMINAL
+                VERBATIM
+            )
+        endif()
+    endif()
+    add_custom_command(TARGET "test-app"
+        POST_BUILD
+        COMMAND "$<TARGET_FILE:test-app>" "--gtest_list_tests" "--gtest_output=json:tests.json" "--project-binary-dir=${PROJECT_BINARY_DIR}"
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:test-app>"
+        USES_TERMINAL
+        VERBATIM
+    )
+
+    gtest_discover_tests("test-app"
+        DISCOVERY_EXTRA_ARGS "--project-binary-dir=${PROJECT_BINARY_DIR}"
+        EXTRA_ARGS "--project-binary-dir=${PROJECT_BINARY_DIR}"
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:test-app>"
+        PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:test-app>;${ENV_PATH}"
+    )
+
+    add_custom_command(
+        OUTPUT "${PROJECT_BINARY_DIR}/junit.xml"
+        COMMAND "${CMAKE_CTEST_COMMAND}" "--build-nocmake" "--output-junit" "${PROJECT_BINARY_DIR}/junit.xml" "--preset" "${PRESET_NAME}" "-R" "^.+\\..+$"
+        DEPENDS "test-app"
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        USES_TERMINAL
+        VERBATIM
+    )
+
+    add_custom_target("cmake-test"
+        DEPENDS "${PROJECT_BINARY_DIR}/junit.xml"
+    )
+endif()
+
 add_custom_command(
-    OUTPUT "${CMAKE_INSTALL_PREFIX}/cmake/${PROJECT_NAME_LOWER}Config.cmake"
+    OUTPUT "${CMAKE_INSTALL_PREFIX}/cmake/${PROJECT_NAME}-config.cmake"
     COMMAND "${CMAKE_COMMAND}" "--install" "${PROJECT_BINARY_DIR}" "--prefix" "${CMAKE_INSTALL_PREFIX}"
-    COMMAND "${CMAKE_COMMAND}" "-E" "make_directory" "${CMAKE_INSTALL_PREFIX}/cmake"
-    COMMAND "${CMAKE_COMMAND}" "-E" "copy_directory" "${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME_LOWER}" "${CMAKE_INSTALL_PREFIX}/cmake"
-    COMMAND "${CMAKE_COMMAND}" "-E" "rm" "-rf" "${CMAKE_INSTALL_PREFIX}/share"
     DEPENDS ${TARGET_CMAKE_INSTALL_DEPENDS_ON}
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     USES_TERMINAL
@@ -276,7 +585,7 @@ add_custom_command(
 )
 
 add_custom_target("cmake-install" ALL
-    DEPENDS "${CMAKE_INSTALL_PREFIX}/cmake/${PROJECT_NAME}Config.cmake"
+    DEPENDS "${CMAKE_INSTALL_PREFIX}/cmake/${PROJECT_NAME}-config.cmake"
 )
 
 if("${USE_CONAN}")
@@ -308,6 +617,46 @@ if("${USE_CONAN}")
         VERBATIM
     )
 endif()
+
+add_custom_target("vscode"
+    COMMAND "${CMAKE_COMMAND}" "-E" "make_directory" "${PROJECT_SOURCE_DIR}/.vscode"
+    COMMAND "${CMAKE_COMMAND}" "-E" "copy" "${PROJECT_SOURCE_DIR}/src/test/resources/vscode/tasks.json" "${PROJECT_SOURCE_DIR}/.vscode"
+    COMMAND "${CMAKE_COMMAND}" "-P" "cmake/util.cmake" "--" "vscode"
+            SOURCE_DIR "${PROJECT_SOURCE_DIR}"
+            BINARY_DIR "${PROJECT_BINARY_DIR}"
+
+            LAUNCH_GENERATE "1"
+            LAUNCH_FILE_OVERWRITE "1"
+            LAUNCH_TEMPLATE_FILE "${PROJECT_SOURCE_DIR}/src/test/resources/vscode/launch.json"
+            LAUNCH_FILE "${PROJECT_SOURCE_DIR}/.vscode/launch.json"
+            LAUNCH_TESTS_FILE "${PROJECT_BINARY_DIR}/test/bin/tests.json"
+            LAUNCH_TESTS "*.*" "*UnitTests.*"
+    DEPENDS "test-app"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    USES_TERMINAL
+    VERBATIM
+)
+
+add_custom_target("clion"
+    COMMAND "${CMAKE_COMMAND}" "-P" "cmake/util.cmake" "--" "clion"
+            SOURCE_DIR "${PROJECT_SOURCE_DIR}"
+            BINARY_DIR "${PROJECT_BINARY_DIR}"
+
+            GTEST_GENERATE "1"
+            GTEST_FILES_OVERWRITE "1"
+            GTEST_TESTS_FILE "${PROJECT_BINARY_DIR}/test/bin/tests.json"
+            GTEST_TEMPLATE_FILE "${PROJECT_SOURCE_DIR}/src/test/resources/clion/gtest/filter-run.xml"
+            GTEST_CONFIG_NAME "${PRESET_NAME}"
+            GTEST_PROJECT_NAME "${PROJECT_NAME}"
+            GTEST_TARGET_NAME "test-app"
+            GTEST_OUTPUT_DIR "${PROJECT_SOURCE_DIR}/.clion/gtest"
+            GTEST_TESTS "*.*" "*UnitTests.*" "*GuiTests.*"
+            GTEST_PROGRAM_PARAMS "--project-binary-dir=${PROJECT_BINARY_DIR}"
+    DEPENDS "test-app"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    USES_TERMINAL
+    VERBATIM
+)
 
 set_target_names(ALL_TARGETS "${CMAKE_CURRENT_SOURCE_DIR}")
 message(STATUS "all-targets:")
