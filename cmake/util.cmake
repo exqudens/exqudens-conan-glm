@@ -13,6 +13,220 @@ if(NOT "${CMAKE_SCRIPT_MODE_FILE}" STREQUAL "" AND "${CMAKE_SCRIPT_MODE_FILE}" S
     cmake_policy(SET CMP0057 NEW)
 endif()
 
+#[[
+# #. create folder ``${BINARY_DIR}/github-package``
+# #. download zip file from ``${URL}``
+# #. extract zip file to ``${BINARY_DIR}/github-package``
+# #. check file ``${BINARY_DIR}/github-package/${zip-file-output-dir}/${CHECK_FILE}`` exists
+# #. create file ``${BINARY_DIR}/github-package/conanfile.py`` with content::
+#
+#     from pathlib import Path
+#
+#     required_conan_version = '>=2.0'
+#
+#     from conan import ConanFile
+#     from conan.tools.files import copy
+#
+#     class ConanConfiguration(ConanFile):
+#         name: str = '${NAME}'
+#         version: str = '${VERSION}'
+#
+#         def package(self):
+#             try:
+#                 copy(self, pattern='*', src=Path(self.build_folder).as_posix(), dst=Path(self.package_folder).as_posix())
+#             except Exception as e:
+#                 self.output.error(e)
+#                 raise e
+#
+# #. ``conan export-pkg --output-folder ${BINARY_DIR}/github-package/${zip-file-output-dir}[@${USER}/${CHANNEL}] ${BINARY_DIR}/github-package/conanfile.py``
+#]]
+function(conan_create_github_package)
+    set(options)
+    set(oneValueKeywords
+        "SOURCE_DIR"
+        "BINARY_DIR"
+
+        "URL"
+        "EXPECTED_MD5"
+        "CHECK_FILE"
+        "NAME"
+        "VERSION"
+        "USER"
+        "CHANNEL"
+        "CONAN_COMMAND"
+    )
+    set(multiValueKeywords)
+
+    foreach(v IN LISTS "options" "oneValueKeywords" "multiValueKeywords")
+        unset("_${v}")
+    endforeach()
+
+    cmake_parse_arguments("" "${options}" "${oneValueKeywords}" "${multiValueKeywords}" "${ARGN}")
+
+    # check-input
+    if(NOT "${_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "UNPARSED_ARGUMENTS: '${_UNPARSED_ARGUMENTS}'")
+    endif()
+
+    if("${_SOURCE_DIR}" STREQUAL "")
+        cmake_path(GET "CMAKE_CURRENT_LIST_DIR" PARENT_PATH "_SOURCE_DIR")
+    endif()
+    if("${_SOURCE_DIR}" STREQUAL "")
+        message(FATAL_ERROR "empty SOURCE_DIR: '${_SOURCE_DIR}'")
+    elseif(NOT EXISTS "${_SOURCE_DIR}")
+        message(FATAL_ERROR "not exists SOURCE_DIR: '${_SOURCE_DIR}'")
+    endif()
+
+    if("${_BINARY_DIR}" STREQUAL "")
+        set(_BINARY_DIR "${_SOURCE_DIR}/build")
+    endif()
+    if("${_BINARY_DIR}" STREQUAL "")
+        message(FATAL_ERROR "empty BINARY_DIR: '${_BINARY_DIR}'")
+    elseif("${_BINARY_DIR}" STREQUAL "")
+        message(FATAL_ERROR "empty BINARY_DIR: '${_BINARY_DIR}'")
+    endif()
+
+    if("${_URL}" STREQUAL "")
+        message(FATAL_ERROR "empty URL: '${_URL}'")
+    endif()
+
+    if("${_EXPECTED_MD5}" STREQUAL "")
+        message(FATAL_ERROR "empty EXPECTED_MD5: '${_EXPECTED_MD5}'")
+    endif()
+
+    if("${_CHECK_FILE}" STREQUAL "")
+        set(_CHECK_FILE "README.md")
+    endif()
+    if("${_CHECK_FILE}" STREQUAL "")
+        message(FATAL_ERROR "empty CHECK_FILE: '${_CHECK_FILE}'")
+    endif()
+
+    if("${_NAME}" STREQUAL "")
+        message(FATAL_ERROR "empty NAME: '${_NAME}'")
+    endif()
+
+    if("${_VERSION}" STREQUAL "")
+        message(FATAL_ERROR "empty VERSION: '${_VERSION}'")
+    endif()
+
+    if("${_USER}" STREQUAL "")
+        set(_USER "-")
+    endif()
+    if("${_USER}" STREQUAL "")
+        message(FATAL_ERROR "empty USER: '${_USER}'")
+    endif()
+
+    if("${_CHANNEL}" STREQUAL "")
+        set(_CHANNEL "-")
+    endif()
+    if("${_CHANNEL}" STREQUAL "")
+        message(FATAL_ERROR "empty CHANNEL: '${_CHANNEL}'")
+    endif()
+
+    if("${_CONAN_COMMAND}" STREQUAL "")
+        find_program(_CONAN_COMMAND NAMES "conan.exe" "conan" PATHS ENV CONAN_PATH ENV PATH REQUIRED NO_CACHE NO_DEFAULT_PATH)
+    endif()
+    if("${_CONAN_COMMAND}" STREQUAL "")
+        message(FATAL_ERROR "empty CONAN_COMMAND: '${_CONAN_COMMAND}'")
+    elseif(NOT EXISTS "${_CONAN_COMMAND}")
+        message(FATAL_ERROR "not exists CONAN_COMMAND: '${_CONAN_COMMAND}'")
+    endif()
+
+    # process
+    if(NOT EXISTS "${_BINARY_DIR}")
+        file(MAKE_DIRECTORY "${_BINARY_DIR}/github-package")
+    endif()
+    if(NOT EXISTS "${_BINARY_DIR}/github-package/file.zip")
+        message(STATUS "download: '${_URL}'")
+        file(DOWNLOAD
+            "${_URL}"
+            "${_BINARY_DIR}/github-package/file.zip"
+            EXPECTED_MD5 "${_EXPECTED_MD5}"
+            STATUS "_DOWNLOAD_STATUS"
+        )
+        if(NOT "${_DOWNLOAD_STATUS}" STREQUAL "0;\"No error\"")
+            message(FATAL_ERROR "DOWNLOAD_STATUS: '${_DOWNLOAD_STATUS}'")
+        endif()
+    endif()
+    file(GLOB "_FILE_ZIP_OUTPUT_DIR_NAME" RELATIVE "${_BINARY_DIR}/github-package" "${_BINARY_DIR}/github-package/*")
+    if("${_FILE_ZIP_OUTPUT_DIR_NAME}" STREQUAL "file.zip")
+        message(STATUS "extract: '${_BINARY_DIR}/github-package/file.zip'")
+        file(ARCHIVE_EXTRACT INPUT "${_BINARY_DIR}/github-package/file.zip" DESTINATION "${_BINARY_DIR}/github-package")
+        file(GLOB "_FILE_ZIP_OUTPUT_DIR_NAME" RELATIVE "${_BINARY_DIR}/github-package" "${_BINARY_DIR}/github-package/*")
+    endif()
+    if("${_FILE_ZIP_OUTPUT_DIR_NAME}" STREQUAL "file.zip")
+        message(FATAL_ERROR "Unable to extract: '${_BINARY_DIR}/github-package/file.zip'")
+    else()
+        list(REMOVE_ITEM "_FILE_ZIP_OUTPUT_DIR_NAME" "file.zip")
+        list(REMOVE_ITEM "_FILE_ZIP_OUTPUT_DIR_NAME" "conanfile.py.in")
+        list(REMOVE_ITEM "_FILE_ZIP_OUTPUT_DIR_NAME" "conanfile.py")
+        list(REMOVE_ITEM "_FILE_ZIP_OUTPUT_DIR_NAME" "exported.txt")
+    endif()
+    list(LENGTH "_FILE_ZIP_OUTPUT_DIR_NAME" _FILE_ZIP_OUTPUT_DIR_NAME_LENGTH)
+    if(NOT "${_FILE_ZIP_OUTPUT_DIR_NAME_LENGTH}" STREQUAL "1")
+        message(FATAL_ERROR "Unable to get FILE_ZIP_OUTPUT_DIR_NAME: '${_FILE_ZIP_OUTPUT_DIR_NAME}'")
+    endif()
+    if(NOT EXISTS "${_BINARY_DIR}/github-package/${_FILE_ZIP_OUTPUT_DIR_NAME}/${_CHECK_FILE}")
+        message(FATAL_ERROR "not exists: '${_BINARY_DIR}/github-package/${_FILE_ZIP_OUTPUT_DIR_NAME}/${_CHECK_FILE}'")
+    endif()
+    if(NOT EXISTS "${_BINARY_DIR}/github-package/conanfile.py.in")
+        message(STATUS "write: '${_BINARY_DIR}/github-package/conanfile.py.in'")
+        string(JOIN "\n" _CONAN_TEMPLATE_FILE_CONTENT
+            "from pathlib import Path"
+            ""
+            "required_conan_version = '>=2.0'"
+            ""
+            "from conan import ConanFile"
+            "from conan.tools.files import copy"
+            ""
+            "class ConanConfiguration(ConanFile):"
+            "    name: str = '@_NAME@'"
+            "    version: str = '@_VERSION@'"
+            ""
+            "    def package(self):"
+            "        try:"
+            "            copy(self, pattern='*', src=Path(self.build_folder).as_posix(), dst=Path(self.package_folder).as_posix())"
+            "        except Exception as e:"
+            "            self.output.error(e)"
+            "            raise e"
+            ""
+        )
+        file(WRITE "${_BINARY_DIR}/github-package/conanfile.py.in" "${_CONAN_TEMPLATE_FILE_CONTENT}")
+    endif()
+    if(NOT EXISTS "${_BINARY_DIR}/github-package/conanfile.py")
+        message(STATUS "write: '${_BINARY_DIR}/github-package/conanfile.py'")
+        configure_file("${_BINARY_DIR}/github-package/conanfile.py.in" "${_BINARY_DIR}/github-package/conanfile.py" "@ONLY" NEWLINE_STYLE "UNIX")
+    endif()
+    if(NOT EXISTS "${_BINARY_DIR}/github-package/exported.txt")
+        message(STATUS "export: '${_BINARY_DIR}/github-package/conanfile.py'")
+        if(NOT "${_USER}" STREQUAL "-" AND NOT "${_CHANNEL}" STREQUAL "-")
+            execute_process(
+                COMMAND "${_CONAN_COMMAND}" "export-pkg"
+                        "--output-folder" "${_BINARY_DIR}/github-package/${_FILE_ZIP_OUTPUT_DIR_NAME}"
+                        "--user" "${_USER}"
+                        "--channel" "${_CHANNEL}"
+                        "${_BINARY_DIR}/github-package/conanfile.py"
+                WORKING_DIRECTORY "${_SOURCE_DIR}"
+                COMMAND_ECHO "STDOUT"
+                ENCODING "UTF-8"
+                COMMAND_ERROR_IS_FATAL "ANY"
+            )
+        else()
+            execute_process(
+                COMMAND "${_CONAN_COMMAND}" "export-pkg"
+                        "--output-folder" "${_BINARY_DIR}/github-package/${_FILE_ZIP_OUTPUT_DIR_NAME}"
+                        "${_BINARY_DIR}/github-package/conanfile.py"
+                WORKING_DIRECTORY "${_SOURCE_DIR}"
+                COMMAND_ECHO "STDOUT"
+                ENCODING "UTF-8"
+                COMMAND_ERROR_IS_FATAL "ANY"
+            )
+        endif()
+        file(WRITE "${_BINARY_DIR}/github-package/exported.txt" "0;no-error")
+    endif()
+    message(STATUS "exported: '${_NAME}/${_VERSION}'")
+endfunction()
+
 function(vscode)
     set(options)
     set(oneValueKeywords
@@ -25,6 +239,7 @@ function(vscode)
         "LAUNCH_FILE"
         "LAUNCH_TESTS_FILE"
         "LAUNCH_DEFAULT_TEST"
+        "LAUNCH_TESTS_INDENT"
     )
     set(multiValueKeywords
         "LAUNCH_ENV_PATH"
@@ -93,6 +308,13 @@ function(vscode)
     endif()
     if("${_LAUNCH_DEFAULT_TEST}" STREQUAL "")
         message(FATAL_ERROR "empty LAUNCH_DEFAULT_TEST: '${_LAUNCH_DEFAULT_TEST}'")
+    endif()
+
+    if("${_LAUNCH_TESTS_INDENT}" STREQUAL "")
+        set(_LAUNCH_TESTS_INDENT "16")
+    endif()
+    if("${_LAUNCH_TESTS_INDENT}" STREQUAL "")
+        message(FATAL_ERROR "empty LAUNCH_TESTS_INDENT: '${_LAUNCH_TESTS_INDENT}'")
     endif()
 
     if("${_LAUNCH_ENV_PATH}" STREQUAL "")
@@ -166,7 +388,8 @@ function(vscode)
         if("${_LAUNCH_DEFAULT_TEST}" STREQUAL "-")
             list(GET "_LAUNCH_TESTS" "0" "_LAUNCH_DEFAULT_TEST")
         endif()
-        string(JOIN "\",\n                    \"" "_LAUNCH_TESTS" ${_LAUNCH_TESTS})
+        string(REPEAT " " "${_LAUNCH_TESTS_INDENT}" _LAUNCH_TESTS_INDENT)
+        string(JOIN "\",\n${_LAUNCH_TESTS_INDENT}\"" "_LAUNCH_TESTS" ${_LAUNCH_TESTS})
 
         configure_file("${_LAUNCH_TEMPLATE_FILE}" "${_LAUNCH_FILE}" @ONLY)
 

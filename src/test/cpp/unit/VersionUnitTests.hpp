@@ -37,7 +37,7 @@ class VersionUnitTests: public testing::Test {
 
 };
 
-TEST_F(VersionUnitTests, test_GLM_VERSION_MESSAGE_1) {
+TEST_F(VersionUnitTests, test_1) {
     try {
         std::string testGroup = testing::UnitTest::GetInstance()->current_test_info()->test_suite_name();
         std::string testCase = testing::UnitTest::GetInstance()->current_test_info()->name();
@@ -55,10 +55,10 @@ TEST_F(VersionUnitTests, test_GLM_VERSION_MESSAGE_1) {
 
         ASSERT_EQ(2, nameVersionSplit.size());
 
-        expected = std::string("GLM: version ") + TestUtils::trim(nameVersionSplit.at(1));
+        expected = TestUtils::trim(nameVersionSplit.at(1));
         EXQUDENS_LOG_INFO(LOGGER_ID) << "expected: '" << expected << "'";
 
-        actual = GLM_VERSION_MESSAGE;
+        actual = std::to_string(GLM_VERSION_MAJOR) + "." + std::to_string(GLM_VERSION_MINOR) + "." + std::to_string(GLM_VERSION_PATCH);
         EXQUDENS_LOG_INFO(LOGGER_ID) << "actual: '" << actual << "'";
 
         ASSERT_EQ(expected, actual);
