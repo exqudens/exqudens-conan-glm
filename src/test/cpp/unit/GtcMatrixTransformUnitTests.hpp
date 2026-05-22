@@ -38,7 +38,6 @@ TEST_F(GtcMatrixTransformUnitTests, test_identityMatrix_1) {
         std::string testCase = testing::UnitTest::GetInstance()->current_test_info()->name();
         EXQUDENS_LOG_INFO(LOGGER_ID) << "bgn";
 
-        float epsilon = 0.0001f;
         glm::vec2 inPosition = {0.5f, 0.5f};
 
         glm::mat4 proj = glm::mat4(1.0f);
@@ -51,7 +50,7 @@ TEST_F(GtcMatrixTransformUnitTests, test_identityMatrix_1) {
         glm::vec4 actual = proj * view * model * glm::vec4(inPosition, 0.0f, 1.0f);
         EXQUDENS_LOG_INFO(LOGGER_ID) << "actual: " << glm::to_string(actual);
 
-        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, epsilon)));
+        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, 0.0001f)));
 
         EXQUDENS_LOG_INFO(LOGGER_ID) << "end";
     } catch (const std::exception& e) {
@@ -72,7 +71,6 @@ TEST_F(GtcMatrixTransformUnitTests, test_rotate_1) {
         std::string testCase = testing::UnitTest::GetInstance()->current_test_info()->name();
         EXQUDENS_LOG_INFO(LOGGER_ID) << "bgn";
 
-        float epsilon = 0.0001f;
         glm::vec2 inPosition = {0.5f, 0.5f};
 
         glm::mat4 proj = glm::mat4(1.0f);
@@ -85,7 +83,7 @@ TEST_F(GtcMatrixTransformUnitTests, test_rotate_1) {
         glm::vec4 actual = proj * view * model * glm::vec4(inPosition, 0.0f, 1.0f);
         EXQUDENS_LOG_INFO(LOGGER_ID) << "actual: " << glm::to_string(actual);
 
-        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, epsilon)));
+        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, 0.0001f)));
 
         EXQUDENS_LOG_INFO(LOGGER_ID) << "end";
     } catch (const std::exception& e) {
@@ -106,11 +104,10 @@ TEST_F(GtcMatrixTransformUnitTests, test_lookAt_1) {
         std::string testCase = testing::UnitTest::GetInstance()->current_test_info()->name();
         EXQUDENS_LOG_INFO(LOGGER_ID) << "bgn";
 
-        float epsilon = 0.0001f;
         glm::vec2 inPosition = {0.5f, 0.5f};
 
         glm::mat4 proj = glm::mat4(1.0f);
-        glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 view = glm::lookAtRH(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         glm::mat4 model = glm::mat4(1.0f);
 
         glm::vec4 expected = glm::vec4(0.0f, -0.408248f, -2.886751f, 1.0f);
@@ -119,7 +116,7 @@ TEST_F(GtcMatrixTransformUnitTests, test_lookAt_1) {
         glm::vec4 actual = proj * view * model * glm::vec4(inPosition, 0.0f, 1.0f);
         EXQUDENS_LOG_INFO(LOGGER_ID) << "actual: " << glm::to_string(actual);
 
-        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, epsilon)));
+        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, 0.0001f)));
 
         EXQUDENS_LOG_INFO(LOGGER_ID) << "end";
     } catch (const std::exception& e) {
@@ -140,10 +137,9 @@ TEST_F(GtcMatrixTransformUnitTests, test_perspective_1) {
         std::string testCase = testing::UnitTest::GetInstance()->current_test_info()->name();
         EXQUDENS_LOG_INFO(LOGGER_ID) << "bgn";
 
-        float epsilon = 0.0001f;
         glm::vec2 inPosition = {0.5f, 0.5f};
 
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), static_cast<float>(800) / static_cast<float>(600), 0.1f, 10.0f);
+        glm::mat4 proj = glm::perspectiveRH_ZO(glm::radians(45.0f), static_cast<float>(800) / static_cast<float>(600), 0.1f, 10.0f);
         glm::mat4 view = glm::mat4(1.0f);
         glm::mat4 model = glm::mat4(1.0f);
 
@@ -153,7 +149,7 @@ TEST_F(GtcMatrixTransformUnitTests, test_perspective_1) {
         glm::vec4 actual = proj * view * model * glm::vec4(inPosition, 0.0f, 1.0f);
         EXQUDENS_LOG_INFO(LOGGER_ID) << "actual: " << glm::to_string(actual);
 
-        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, epsilon)));
+        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, 0.0001f)));
 
         EXQUDENS_LOG_INFO(LOGGER_ID) << "end";
     } catch (const std::exception& e) {
@@ -174,11 +170,10 @@ TEST_F(GtcMatrixTransformUnitTests, test_rotate_lookAt_perspective_1) {
         std::string testCase = testing::UnitTest::GetInstance()->current_test_info()->name();
         EXQUDENS_LOG_INFO(LOGGER_ID) << "bgn";
 
-        float epsilon = 0.0001f;
         glm::vec2 inPosition = {0.5f, 0.5f};
 
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), static_cast<float>(800) / static_cast<float>(600), 0.1f, 10.0f);
-        glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 proj = glm::perspectiveRH_ZO(glm::radians(45.0f), static_cast<float>(800) / static_cast<float>(600), 0.1f, 10.0f);
+        glm::mat4 view = glm::lookAtRH(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         glm::mat4 model = glm::rotate(glm::mat4(1.0f), 1.0f * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
         glm::vec4 expected = glm::vec4(1.280330f, 0.0f, 3.398083f, 3.464102f);
@@ -187,7 +182,7 @@ TEST_F(GtcMatrixTransformUnitTests, test_rotate_lookAt_perspective_1) {
         glm::vec4 actual = proj * view * model * glm::vec4(inPosition, 0.0f, 1.0f);
         EXQUDENS_LOG_INFO(LOGGER_ID) << "actual: " << glm::to_string(actual);
 
-        //ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, epsilon)));
+        ASSERT_TRUE(glm::all(glm::epsilonEqual(expected, actual, 0.0001f)));
 
         EXQUDENS_LOG_INFO(LOGGER_ID) << "end";
     } catch (const std::exception& e) {
