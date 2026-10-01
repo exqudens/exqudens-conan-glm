@@ -37,33 +37,36 @@ void TestUtils::init(const std::vector<std::string>& input) {
     }
 }
 
-std::string TestUtils::getExecutableFile() {
+std::optional<std::string> TestUtils::getExecutableFile() {
     try {
-        return data.executableFile.value();
+        return data.executableFile;
     } catch (...) {
         std::throw_with_nested(std::runtime_error(CALL_INFO));
     }
 }
 
-std::string TestUtils::getExecutableDir() {
+std::optional<std::string> TestUtils::getExecutableDir() {
     try {
-        return data.executableDir.value();
+        return data.executableDir;
     } catch (...) {
         std::throw_with_nested(std::runtime_error(CALL_INFO));
     }
 }
 
-std::string TestUtils::getProjectBinaryDir() {
+std::optional<std::string> TestUtils::getProjectBinaryDir() {
     try {
-        return data.projectBinaryDir.value();
+        return data.projectBinaryDir;
     } catch (...) {
         std::throw_with_nested(std::runtime_error(CALL_INFO));
     }
 }
 
-std::string TestUtils::getTestOutputDir(const std::string& testGroup, const std::string& testCase) {
+std::optional<std::string> TestUtils::getTestOutputDir(const std::string& testGroup, const std::string& testCase) {
     try {
-        std::filesystem::path result(getProjectBinaryDir());
+        if (!getProjectBinaryDir().has_value()) {
+            return {};
+        }
+        std::filesystem::path result(getProjectBinaryDir().value());
         result = result / "test" / "output" / testGroup / testCase;
         return result.generic_string();
     } catch (...) {
@@ -71,7 +74,7 @@ std::string TestUtils::getTestOutputDir(const std::string& testGroup, const std:
     }
 }
 
-std::string TestUtils::getProjectSourceDir() {
+std::optional<std::string> TestUtils::getProjectSourceDir() {
     try {
         return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().generic_string();
     } catch (...) {
@@ -79,9 +82,12 @@ std::string TestUtils::getProjectSourceDir() {
     }
 }
 
-std::string TestUtils::getTestInputDir(const std::string& testGroup, const std::string& testCase) {
+std::optional<std::string> TestUtils::getTestInputDir(const std::string& testGroup, const std::string& testCase) {
     try {
-        std::filesystem::path result(getProjectSourceDir());
+        if (!getProjectSourceDir().has_value()) {
+            return {};
+        }
+        std::filesystem::path result(getProjectSourceDir().value());
         result = result / "src" / "test" / "resources" / testGroup / testCase;
         return result.generic_string();
     } catch (...) {

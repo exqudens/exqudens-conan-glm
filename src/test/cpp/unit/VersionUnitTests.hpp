@@ -49,7 +49,7 @@ TEST_F(VersionUnitTests, test_1) {
         std::string expected = {};
         std::string actual = {};
 
-        projectSourceDir = std::filesystem::path(TestUtils::getProjectSourceDir());
+        projectSourceDir = std::filesystem::path(TestUtils::getProjectSourceDir().value());
         nameVersionContent = TestUtils::readFileString((projectSourceDir / "name-version.txt").generic_string());
         nameVersionSplit = TestUtils::split(nameVersionContent, ":");
 

@@ -32,7 +32,7 @@ if("${CMAKE_UTIL_FILE}" STREQUAL "")
                     COMMAND_ERROR_IS_FATAL "ANY"
                 )]]
                 execute_process(
-                    COMMAND "${CONAN_COMMAND}" "install" "--tool-requires=exqudens-cmake/0.0.1@${CONAN_USER}/${CONAN_CHANNEL}" "--deployer" "direct_deploy" "--deployer-folder" "${CMAKE_SOURCE_DIR}/build/dependencies"
+                    COMMAND "${CONAN_COMMAND}" "install" "--envs-generation" "false" "--tool-requires=exqudens-cmake/0.0.1@${CONAN_USER}/${CONAN_CHANNEL}" "--deployer" "direct_deploy" "--deployer-folder" "${CMAKE_SOURCE_DIR}/build/dependencies"
                     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
                     COMMAND_ECHO "STDOUT"
                     ENCODING "UTF-8"
@@ -86,6 +86,12 @@ string(STRIP "${VERSION}" VERSION)
 project("${NAME}" VERSION "${VERSION}" LANGUAGES "NONE")
 
 message(STATUS "project: '${PROJECT_NAME}-${PROJECT_VERSION}'")
+
+set(CMAKE_UTIL_ONLY "0" CACHE BOOL "...")
+
+if("${CMAKE_UTIL_ONLY}")
+    return()
+endif()
 
 #[[if("$ENV{CLION_IDE}")
     cmake_path(CONVERT "$ENV{PATH}" TO_CMAKE_PATH_LIST TMP_CMAKE_ENV_PATH NORMALIZE)
@@ -211,7 +217,8 @@ if("${USE_CONAN}")
         )]]
         execute_process(
             COMMAND "${CONAN_COMMAND}" "install"
-                    "--output-folder" "${BASE_DIR}"
+                    "--envs-generation" "false"
+                    "--output-folder" "${PROJECT_SOURCE_DIR}/build"
                     "--user" "${CONAN_USER}"
                     "--channel" "${CONAN_CHANNEL}"
                     "${PROJECT_SOURCE_DIR}/build-conanfile.py"
@@ -232,6 +239,7 @@ if("${USE_CONAN}")
             )]]
             execute_process(
                 COMMAND "${CONAN_COMMAND}" "install"
+                        "--envs-generation" "false"
                         "--output-folder" "${CONAN_INSTALL_PREFIX}/test"
                         ${CONAN_SETTINGS}
                         ${CONAN_OPTIONS}
@@ -626,11 +634,10 @@ add_custom_target("vscode"
 
             LAUNCH_GENERATE "1"
             LAUNCH_FILE_OVERWRITE "1"
-            LAUNCH_TEMPLATE_FILE "${PROJECT_SOURCE_DIR}/src/test/resources/vscode/command-variable-launch.json"
+            LAUNCH_TEMPLATE_FILE "${PROJECT_SOURCE_DIR}/src/test/resources/vscode/launch.json"
             LAUNCH_FILE "${PROJECT_SOURCE_DIR}/.vscode/launch.json"
             LAUNCH_TESTS_FILE "${PROJECT_BINARY_DIR}/test/bin/tests.json"
             LAUNCH_TESTS "*.*" "*UnitTests.*"
-            LAUNCH_TESTS_INDENT "20"
     DEPENDS "test-app"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     USES_TERMINAL
